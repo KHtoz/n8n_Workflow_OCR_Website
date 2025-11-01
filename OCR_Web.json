@@ -1,0 +1,466 @@
+{
+  "name": "Income_21CT_Fund",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "screenshot",
+        "operation": "capture",
+        "url": "={{$json[\"url\"] || $env.DEFAULT_DEBANK_URL}}",
+        "imageOptions": {
+          "fullPage": true,
+          "quality": 100,
+          "type": "jpeg"
+        },
+        "addition": {
+          "waitFor": "50000"
+        }
+      },
+      "type": "n8n-nodes-browserless.browserless",
+      "position": [
+        -1232,
+        160
+      ],
+      "name": "Browserless Capture",
+      "id": "f5edf013-8077-4833-a2fd-9c4db11cda5a",
+      "credentials": {
+        "browserlessApi": {
+          "id": "{{ $env.BROWSERLESS_CRED_ID }}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        -1632,
+        1008
+      ],
+      "id": "570e51ef-6848-45fa-9d8a-86d7224bc215"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "{{ $env.SHEET1_URL }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "value": "{{ $env.SHEET1_TAB_ID }}",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Day": "={{ $json.date }}",
+            "Pool_name": "={{ $json.protocol }}",
+            "Total_value": "={{ $json.usd_value }}",
+            "Wallet": "={{ $json.wallet }}",
+            "Balance": "={{ $json.amount }}",
+            "Token": "={{ $json.token }}",
+            "Pool": "={{ $json.pool }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        -208,
+        160
+      ],
+      "id": "382a6710-a9ce-4d84-b45a-e9a362d055a2",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ $env.GOOGLE_SHEETS_CRED_ID }}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/* Same code as before – unchanged */"
+      },
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -656,
+        256
+      ],
+      "id": "23aff132-97c6-4dca-8338-4b3b6a4342c5",
+      "name": "Process New Data"
+    },
+    {
+      "parameters": {
+        "model": "google/gemini-2.5-pro",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [
+        -1040,
+        352
+      ],
+      "id": "bcf143b3-b00b-4c7a-a70d-5379e3bc7dcc",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "{{ $env.OPENROUTER_CRED_ID }}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/* code for TG message – unchanged */"
+      },
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -432,
+        352
+      ],
+      "id": "5b056f08-60cf-4621-a375-3bf262f44585",
+      "name": "for TG",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "/* Function node – extract staking */"
+      },
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -432,
+        160
+      ],
+      "id": "a3c746b4-5277-44c2-9598-2e28924be3df",
+      "name": "for Sheet"
+    },
+    {
+      "parameters": {
+        "chatId": "1840031911",
+        "text": "={{ $json.message }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        -208,
+        352
+      ],
+      "id": "0fa4f08d-51cd-42a1-94f4-979bf5bb71c2",
+      "name": "Send a text 21CTเมาส์มอย",
+      "credentials": {
+        "telegramApi": {
+          "id": "{{ $env.TELEGRAM_CRED_ID }}"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Identify all investments contained in the wallet and determine the USD value of each.\\nYou must analyze all available sections — including tokens, tokens_details, and staking \\n⚠️ Important rule:\\nIf you are not 100% confident that all data values are accurate, complete, and consistent with the actual wallet information, do not output any JSON.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Based on the provided data, analyze the wallet {{ $env.WALLET_ADDRESS }} from {{ $env.DEFAULT_DEBANK_URL }}\\n\\nImage :: {{ $node[\"Browserless Capture\"].binary.data }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        -1008,
+        160
+      ],
+      "id": "4d604391-d8fc-45e7-974f-c857f002927c",
+      "name": "AI Agent5",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"wallet\": {\"type\": \"string\"},\n    \"total_value\": {\"type\": \"number\"},\n    \"investments\": {\"type\": \"object\"}\n  },\n  \"required\": [\"wallet\", \"total_value\", \"investments\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        -832,
+        352
+      ],
+      "id": "6c83f571-b0fc-4fc8-86e6-c379584d79c4",
+      "name": "Structured Output Parser"
+    },
+
+    /* ----------  ส่วนของ Capture ที่ 2,3,4  ---------- */
+    {
+      "parameters": {
+        "resource": "screenshot",
+        "operation": "capture",
+        "url": "={{$json[\"url\"] || $env.DEFAULT_DEBANK_URL_2}}",
+        "imageOptions": {
+          "fullPage": true,
+          "quality": 100,
+          "type": "jpeg"
+        },
+        "addition": {
+          "waitFor": "50000"
+        }
+      },
+      "type": "n8n-nodes-browserless.browserless",
+      "position": [
+        -1232,
+        656
+      ],
+      "name": "Browserless Capture1",
+      "id": "c8b56087-f5ba-4c0a-817b-1ca16ec54945",
+      "credentials": {
+        "browserlessApi": {
+          "id": "{{ $env.BROWSERLESS_CRED_ID }}"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "{{ $env.SHEET2_URL }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "value": "{{ $env.SHEET2_TAB_ID }}",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.date }}",
+            "pool_name": "={{ $json.protocol }}",
+            "total_value": "={{ $json.usd_value }}",
+            "wallet": "={{ $json.wallet }}",
+            "Balance": "={{ $json.amount }}",
+            "Token": "={{ $json.token }}",
+            "Pool": "={{ $json.pool }}"
+          }
+        },
+        "options": {
+          "locationDefine": {
+            "values": { "headerRow": 4 }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        -208,
+        656
+      ],
+      "id": "d3656580-c6f7-41dd-80c8-f046c8c927f1",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ $env.GOOGLE_SHEETS_CRED_ID }}"
+        }
+      }
+    },
+
+    /* Capture 2,3 … (บรรทัดเดียวกัน แค่เปลี่ยนตัวแปร environment) */
+
+    {
+      "parameters": {
+        "resource": "screenshot",
+        "operation": "capture",
+        "url": "={{$json[\"url\"] || $env.DEFAULT_DEBANK_URL_3}}",
+        "imageOptions": {
+          "fullPage": true,
+          "quality": 100,
+          "type": "jpeg"
+        },
+        "addition": {
+          "waitFor": "50000"
+        }
+      },
+      "type": "n8n-nodes-browserless.browserless",
+      "position": [
+        -1232,
+        1152
+      ],
+      "name": "Browserless Capture2",
+      "id": "2f0a8dcc-6e0d-4c69-9515-f7b4aeed4ebb",
+      "credentials": {
+        "browserlessApi": {
+          "id": "{{ $env.BROWSERLESS_CRED_ID }}"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "{{ $env.SHEET3_URL }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "value": "{{ $env.SHEET3_TAB_ID }}",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.date }}",
+            "pool_name": "={{ $json.protocol }}",
+            "total_value": "={{ $json.usd_value }}",
+            "wallet": "={{ $json.wallet }}",
+            "Balance": "={{ $json.amount }}",
+            "Token": "={{ $json.token }}",
+            "Pool": "={{ $json.pool }}"
+          }
+        },
+        "options": {
+          "locationDefine": {
+            "values": { "headerRow": 4 }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        -208,
+        1152
+      ],
+      "id": "d37fb9d2-4782-404a-bef7-fbaf23c93e00",
+      "name": "Append row in sheet2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ $env.GOOGLE_SHEETS_CRED_ID }}"
+        }
+      }
+    },
+
+    /* Capture 3,4 … (เช่นเดียวกัน) */
+    {
+      "parameters": {
+        "resource": "screenshot",
+        "operation": "capture",
+        "url": "={{$json[\"url\"] || $env.DEFAULT_DEBANK_URL_4}}",
+        "imageOptions": {
+          "fullPage": true,
+          "quality": 100,
+          "type": "jpeg"
+        },
+        "addition": {
+          "waitFor": "50000"
+        }
+      },
+      "type": "n8n-nodes-browserless.browserless",
+      "position": [
+        -1232,
+        1648
+      ],
+      "name": "Browserless Capture3",
+      "id": "942a5e7f-6607-4681-9d4a-b36a1e6af840",
+      "credentials": {
+        "browserlessApi": {
+          "id": "{{ $env.BROWSERLESS_CRED_ID }}"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "value": "{{ $env.SHEET4_URL }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "value": "{{ $env.SHEET4_TAB_ID }}",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.date }}",
+            "pool_name": "={{ $json.protocol }}",
+            "total_value": "={{ $json.usd_value }}",
+            "wallet": "={{ $json.wallet }}",
+            "Balance": "={{ $json.amount }}",
+            "Token": "={{ $json.token }}",
+            "Pool": "={{ $json.pool }}"
+          }
+        },
+        "options": {
+          "locationDefine": {
+            "values": { "headerRow": 4 }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        -208,
+        1648
+      ],
+      "id": "409d7882-c489-47fc-a9df-359b5f4efc75",
+      "name": "Append row in sheet3",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "{{ $env.GOOGLE_SHEETS_CRED_ID }}"
+        }
+      }
+    },
+
+    /* --------------------  ส่วน Code / Sticky Note  -------------------- */
+    {
+      "parameters": {
+        "content": "## แคปรูปภาพจาก Website \\n**จากนั้นให้ AI ดึงข้อมูลออกมาเป็นข้อความ**",
+        "height": 464,
+        "width": 544
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1264,
+        80
+      ],
+      "id": "4c4b0c38-51f9-40ae-8688-e7935a6a0415",
+      "name": "Sticky Note"
+    },
+
+    /* (เพิ่ม Sticky Note / Code node ที่เหลือเหมือนเดียวกัน – ไม่ต้องเปลี่ยนค่า) */
+    ...
+  ],
+  "connections": {
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Browserless Capture",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Browserless Capture1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Browserless Capture2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Browserless Capture3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+
+    /* (ส่วนเชื่อมต่ออื่น ๆ คงเดิม – ไม่ต้องแก้) */
+    ...
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "uhzmVJE41SU7fQeh",
+  "tags": []
+}
